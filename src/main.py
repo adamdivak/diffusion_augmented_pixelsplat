@@ -70,7 +70,7 @@ def train(cfg_dict: DictConfig):
             wandb.run.log_code("src")
     else:
         logger = LocalLogger()
-
+    print("setting up checkpointing")
     # Set up checkpointing.
     callbacks.append(
         ModelCheckpoint(
@@ -85,7 +85,7 @@ def train(cfg_dict: DictConfig):
 
     # This allows the current step to be shared with the data loader processes.
     step_tracker = StepTracker()
-
+    print("init trainer")
     trainer = Trainer(
         max_epochs=-1,
         accelerator="gpu",
@@ -98,7 +98,7 @@ def train(cfg_dict: DictConfig):
         ),
         callbacks=callbacks,
         val_check_interval=cfg.trainer.val_check_interval,
-        enable_progress_bar=False,
+        enable_progress_bar=True,
         gradient_clip_val=cfg.trainer.gradient_clip_val,
         max_steps=cfg.trainer.max_steps,
         log_every_n_steps=1,
