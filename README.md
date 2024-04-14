@@ -27,8 +27,11 @@ This version of the codebase has been updated slightly to reflect the CVPR camer
 ### Installation on Snellius supercomputer
 This is not straightforward as we don't have sudo privileges and many default packages are outdated.
 Also, new versions of g++ are not compatible.
-Execute the following commands, in order and only after the previous command is finished:
+After cloning the repo, execute the following commands, in order and only after the previous command is finished:
 
+```bash
+cd installation_jobs
+``` 
 This takes approximately 30 minutes, all others are much faster.
 ```bash
 sbatch install_env.job
