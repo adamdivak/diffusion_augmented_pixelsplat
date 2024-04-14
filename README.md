@@ -24,6 +24,43 @@ This version of the codebase has been updated slightly to reflect the CVPR camer
 
 ## Installation
 
+### Installation on Snellius supercomputer
+This is not straightforward as we don't have sudo privileges and many default packages are outdated.
+Also, new versions of g++ are not compatible.
+Execute the following commands, in order and only after the previous command is finished:
+
+This takes approximately 30 minutes, all others are much faster.
+```bash
+sbatch install_env.job
+```
+
+This will return an error but we will fix this afterwards.
+```bash
+sbatch install_packages.job
+```
+
+Debugging jobs:
+```bash
+sbatch debug.job
+```
+```bash
+sbatch debug2.job
+```
+```bash
+sbatch debug3.job
+```
+```bash
+sbatch debug4.job
+```
+```bash
+sbatch debug5.job
+```
+
+Now this should run without any errors.
+```bash
+sbatch install_packages.job
+```
+
 To get started, create a virtual environment using Python 3.10+:
 
 ```bash
