@@ -17,6 +17,7 @@ def get_dataset(
     cfg: DatasetCfg,
     stage: Stage,
     step_tracker: StepTracker | None,
+    demo: bool = False,
 ) -> Dataset:
     view_sampler = get_view_sampler(
         cfg.view_sampler,
@@ -25,4 +26,4 @@ def get_dataset(
         cfg.cameras_are_circular,
         step_tracker,
     )
-    return DATASETS[cfg.name](cfg, stage, view_sampler)
+    return DATASETS[cfg.name](cfg, stage, view_sampler, demo)

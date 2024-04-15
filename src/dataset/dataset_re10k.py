@@ -46,6 +46,7 @@ class DatasetRE10k(IterableDataset):
         cfg: DatasetRE10kCfg,
         stage: Stage,
         view_sampler: ViewSampler,
+        demo: bool = False
     ) -> None:
         super().__init__()
         self.cfg = cfg
@@ -64,6 +65,7 @@ class DatasetRE10k(IterableDataset):
         if self.cfg.overfit_to_scene is not None:
             chunk_path = self.index[self.cfg.overfit_to_scene]
             self.chunks = [chunk_path] * len(self.chunks)
+        self.demo = demo
 
     def shuffle(self, lst: list) -> list:
         indices = torch.randperm(len(lst))
@@ -174,7 +176,11 @@ class DatasetRE10k(IterableDataset):
                 }
                 if self.stage == "train" and self.cfg.augment:
                     example = apply_augmentation_shim(example)
-                yield apply_crop_shim(example, tuple(self.cfg.image_shape))
+                
+                if self.demo:
+                    yield apply_crop_shim(example, tuple(self.cfg.image_shape)), example
+                else:
+                    yield apply_crop_shim(example, tuple(self.cfg.image_shape))  #TODO commented this to see what it is doing
 
     def convert_poses(
         self,

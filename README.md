@@ -12,6 +12,14 @@ Check out their [project website here](https://dcharatan.github.io/pixelsplat).
 - Choose and incorporate a diffusion model
 - Use the output of the diffusion model to supervise pixelSplat
 
+## Demo - in progress
+Running the demo:
+```bash
+python -m src.demo
+```
+
+My first impression: the left and right image are not always very similar, possibly leading to worse results (but still need to test this)
+
 ## Camera-ready Updates
 
 * A configuration for 3-view pixelSplat has been added. In general, it's now possible to run pixelSplat with an arbitrary number of views, although you'll need a lot of GPU memory to do so.
