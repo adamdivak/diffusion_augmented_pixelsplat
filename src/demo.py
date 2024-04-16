@@ -2,16 +2,16 @@ from jaxtyping import install_import_hook
 import hydra
 import torch
 import warnings
-import matplotlib
 import matplotlib.pyplot as plt
 warnings.filterwarnings("ignore")
 from torch import Generator
-import random
-import numpy as np
+from src.dataset.data_module import DataModule
 
 from .dataset.data_module import get_data_shim, get_data_shim, DatasetCfg, get_dataset
 from .dataset.types import BatchedExample
 from torch.utils.data import DataLoader
+from .dataset.shims.crop_shim import apply_crop_shim
+
 
 with install_import_hook(("src",), ("beartype", "beartype")):
     from src.config import load_typed_root_config
@@ -30,8 +30,7 @@ def save_image(img, name):
     plt.imsave(f'demo_images/right_image{name}.png', right_image_np)
 
 
-# TODO load models from pretrained checkpoints
-# TODO load example images into batch format
+# TODO load models from pretrained checkpoints, probably just calling the file differently
 @hydra.main(version_base=None, config_path="../config", config_name="main")
 def demo(cfg_dict):
     # Set configs and seed
@@ -54,26 +53,32 @@ def demo(cfg_dict):
     #    With the above the decoder generates colors (and depth if depth_mode=True)
     decoder = get_decoder(cfg.model.decoder, cfg.dataset)
 
-    # Get the dataset
-    dataset = get_dataset(cfg.dataset, "test", StepTracker(), demo=True)
+    # Get the dataset, two ways:
+    # 1 Via get_dataset
+    # dataset = get_dataset(cfg.dataset, "test", StepTracker(), demo=True)
+    # save_image(ex, ""); save_image(cropped_ex, "_cropped")
+    # cropped_ex, ex = next(iter(dataset))
+    # cropped_ex["context"]["image"] = cropped_ex["context"]["image"].unsqueeze(0)
+    # cropped_ex["target"]["image"] = cropped_ex["target"]["image"].unsqueeze(0)
+    # cropped_ex["context"]["intrinsics"] = cropped_ex["context"]["intrinsics"].unsqueeze(0)
+    # cropped_ex["target"]["intrinsics"] = cropped_ex["target"]["intrinsics"].unsqueeze(0)
+    # cropped_ex["context"]["extrinsics"] = cropped_ex["context"]["extrinsics"].unsqueeze(0)
+    # cropped_ex["target"]["extrinsics"] = cropped_ex["target"]["extrinsics"].unsqueeze(0)
+
+    # 2 Via the way of Adam
+    data_module = DataModule(
+        cfg.dataset,
+        cfg.data_loader,
+    )
     
-    cropped_ex, ex = next(iter(dataset))
-    print(dir(cropped_ex))
-    # return 
-    save_image(ex, ""); save_image(cropped_ex, "_cropped")
-    cropped_ex["context"]["image"] = cropped_ex["context"]["image"].unsqueeze(0)
-    cropped_ex["target"]["image"] = cropped_ex["target"]["image"].unsqueeze(0)
-    cropped_ex["context"]["intrinsics"] = cropped_ex["context"]["intrinsics"].unsqueeze(0)
-    cropped_ex["target"]["intrinsics"] = cropped_ex["target"]["intrinsics"].unsqueeze(0)
-    cropped_ex["context"]["extrinsics"] = cropped_ex["context"]["extrinsics"].unsqueeze(0)
-    cropped_ex["target"]["extrinsics"] = cropped_ex["target"]["extrinsics"].unsqueeze(0)
+    cropped_ex = next(iter(data_module.test_dataloader()))
 
     # A batch contains: Target, Context, Scene
     # Target and Context are contain:
     #    extrinsics, intrinsics, image, near, far, index
     # Scene is a list of strings
     data_shim = get_data_shim(encoder)
-    this_is_input = BatchedExample(
+    this_is_input = BatchedExample(  # TODO: double check if this is correct
         target=cropped_ex["target"],
         context=cropped_ex["context"],
         scene=cropped_ex["scene"]
@@ -81,8 +86,14 @@ def demo(cfg_dict):
     batch: BatchedExample = data_shim(this_is_input)  
     b, v, _, h, w = batch["target"]["image"].shape
 
+    # print(batch["context"].keys())  # dict_keys(['extrinsics', 'intrinsics', 'image', 'near', 'far', 'index']) as it should
+
     # Render Gaussians
-    gaussians = encoder(batch["context"], global_step=1)
+    gaussians = encoder(batch["context"], global_step=1, deterministic=False)  # TODO this fails:
+    # num_rendered, color, radii, geomBuffer, binningBuffer, imgBuffer = _C.rasterize_gaussians(*args)
+    # RuntimeError: an illegal memory access was encountered, known error
+    # https://github.com/graphdeco-inria/gaussian-splatting/issues/41#issuecomment-1752279620 doesnt help
+    # it is strange as it does the same as in model_wrapper.py which works
 
     # Decoder, TODO this seems heavily inefficient (but is used)
     color = []
