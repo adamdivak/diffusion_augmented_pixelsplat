@@ -1,34 +1,25 @@
-import os
-from pathlib import Path
-
+from jaxtyping import install_import_hook
 import hydra
 import torch
-import wandb
-from colorama import Fore
-from jaxtyping import install_import_hook
-from lightning.pytorch import Trainer
-from lightning.pytorch.callbacks import LearningRateMonitor, ModelCheckpoint
-from lightning.pytorch.loggers.wandb import WandbLogger
-from lightning.pytorch.plugins.environments import SLURMEnvironment
-from omegaconf import DictConfig, OmegaConf
+import warnings
+import matplotlib
 import matplotlib.pyplot as plt
+warnings.filterwarnings("ignore")
+from torch import Generator
+import random
+import numpy as np
 
-# Configure beartype and jaxtyping.
-with install_import_hook(
-    ("src",),
-    ("beartype", "beartype"),
-):
+from .dataset.data_module import get_data_shim, get_data_shim, DatasetCfg, get_dataset
+from .dataset.types import BatchedExample
+from torch.utils.data import DataLoader
+
+with install_import_hook(("src",), ("beartype", "beartype")):
     from src.config import load_typed_root_config
-    from src.dataset.data_module import DataModule
-    from src.global_cfg import set_cfg
-    from src.loss import get_losses
-    from src.misc.LocalLogger import LocalLogger
-    from src.misc.step_tracker import StepTracker
-    from src.misc.wandb_tools import update_checkpoint_path
+    from src.global_cfg import set_cfg, get_cfg
     from src.model.decoder import get_decoder
+    from src.misc.step_tracker import StepTracker
     from src.model.encoder import get_encoder
-    from src.model.model_wrapper import ModelWrapper
-
+    from src.misc.image_io import save_image
 
 
 def save_image(img, name):
@@ -39,9 +30,6 @@ def save_image(img, name):
     plt.imsave(f'demo_images/right_image{name}.png', right_image_np)
 
 
-def cyan(text: str) -> str:
-    return f"{Fore.CYAN}{text}{Fore.RESET}"
-
 # TODO load models from pretrained checkpoints
 # TODO load example images into batch format
 @hydra.main(version_base=None, config_path="../config", config_name="main")
@@ -51,70 +39,6 @@ def demo(cfg_dict):
     set_cfg(cfg_dict) 
     test_cfg = cfg.test
     torch.manual_seed(cfg_dict.seed)
-
-    # Set up the output directory.
-    output_dir = Path(
-        hydra.core.hydra_config.HydraConfig.get()["runtime"]["output_dir"]
-    )
-    print(cyan(f"Saving outputs to {output_dir}."))
-    latest_run = output_dir.parents[1] / "latest-run"
-    os.system(f"rm {latest_run}")
-    os.system(f"ln -s {output_dir} {latest_run}")
-
-    # Set up logging with wandb.
-    callbacks = []
-    if cfg_dict.wandb.mode != "disabled":
-        logger = WandbLogger(
-            project=cfg_dict.wandb.project,
-            mode=cfg_dict.wandb.mode,
-            name=f"{cfg_dict.wandb.name} ({output_dir.parent.name}/{output_dir.name})",
-            tags=cfg_dict.wandb.get("tags", None),
-            log_model="all",
-            save_dir=output_dir,
-            config=OmegaConf.to_container(cfg_dict),
-        )
-        callbacks.append(LearningRateMonitor("step", True))
-
-        # On rank != 0, wandb.run is None.
-        if wandb.run is not None:
-            wandb.run.log_code("src")
-    else:
-        logger = LocalLogger()
-    print("setting up checkpointing")
-    # Set up checkpointing.
-    callbacks.append(
-        ModelCheckpoint(
-            output_dir / "checkpoints",
-            every_n_train_steps=cfg.checkpointing.every_n_train_steps,
-            save_top_k=cfg.checkpointing.save_top_k,
-        )
-    )
-
-    # Prepare the checkpoint for loading.
-    checkpoint_path = update_checkpoint_path(cfg.checkpointing.load, cfg.wandb)
-
-    # This allows the current step to be shared with the data loader processes.
-    step_tracker = StepTracker()
-    print("init trainer")
-    trainer = Trainer(
-        max_epochs=-1,
-        accelerator="gpu",
-        logger=logger,
-        devices="auto",
-        strategy=(
-            "ddp_find_unused_parameters_true"
-            if torch.cuda.device_count() > 1
-            else "auto"
-        ),
-        callbacks=callbacks,
-        val_check_interval=cfg.trainer.val_check_interval,
-        enable_progress_bar=True,
-        gradient_clip_val=cfg.trainer.gradient_clip_val,
-        max_steps=cfg.trainer.max_steps,
-        log_every_n_steps=1,
-        plugins=[SLURMEnvironment(auto_requeue=False)],
-    )
-    torch.manual_seed(cfg_dict.seed + trainer.global_rank)
 
     # Get the encoder (EncoderEpipolar)
     # This is a large model, presumably contributing the most free parameters
@@ -134,6 +58,7 @@ def demo(cfg_dict):
     dataset = get_dataset(cfg.dataset, "test", StepTracker(), demo=True)
     
     cropped_ex, ex = next(iter(dataset))
+    print(dir(cropped_ex))
     # return 
     save_image(ex, ""); save_image(cropped_ex, "_cropped")
     cropped_ex["context"]["image"] = cropped_ex["context"]["image"].unsqueeze(0)
@@ -148,11 +73,16 @@ def demo(cfg_dict):
     #    extrinsics, intrinsics, image, near, far, index
     # Scene is a list of strings
     data_shim = get_data_shim(encoder)
-    batch: BatchedExample = data_shim(cropped_ex)  
+    this_is_input = BatchedExample(
+        target=cropped_ex["target"],
+        context=cropped_ex["context"],
+        scene=cropped_ex["scene"]
+    )
+    batch: BatchedExample = data_shim(this_is_input)  
     b, v, _, h, w = batch["target"]["image"].shape
 
     # Render Gaussians
-    gaussians = encoder(batch["context"])
+    gaussians = encoder(batch["context"], global_step=1)
 
     # Decoder, TODO this seems heavily inefficient (but is used)
     color = []

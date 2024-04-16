@@ -21,7 +21,7 @@ with install_import_hook(
     from src.paper.common import encode_image, save_svg
     from src.scripts.compute_metrics import RootCfg
 
-    from .common import MARGIN
+    from .paper.common import MARGIN
 
 FIGURE_WIDTH = 500
 LINE_WIDTH = 0.5
@@ -203,5 +203,5 @@ def generate_image_comparison():
 
 
 if __name__ == "__main__":
-    initialize(config_path="../../config", job_name="generate_image_comparison")
+    initialize(config_path="../config", job_name="generate_image_comparison")
     generate_image_comparison()

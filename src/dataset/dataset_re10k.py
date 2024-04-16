@@ -63,6 +63,7 @@ class DatasetRE10k(IterableDataset):
             )
             self.chunks.extend(root_chunks)
         if self.cfg.overfit_to_scene is not None:
+            print(self.index.keys())
             chunk_path = self.index[self.cfg.overfit_to_scene]
             self.chunks = [chunk_path] * len(self.chunks)
         self.demo = demo
