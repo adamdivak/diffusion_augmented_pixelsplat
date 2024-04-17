@@ -18,10 +18,10 @@ warnings.filterwarnings("ignore")
 from torch import Generator
 from src.dataset.data_module import DataModule
 
-from .dataset.data_module import get_data_shim, get_data_shim, DatasetCfg, get_dataset
-from .dataset.types import BatchedExample
+from src.dataset.data_module import get_data_shim, get_data_shim, DatasetCfg, get_dataset
+from src.dataset.types import BatchedExample
 from torch.utils.data import DataLoader
-from .dataset.shims.crop_shim import apply_crop_shim
+from src.dataset.shims.crop_shim import apply_crop_shim
 
 
 with install_import_hook(("src",), ("beartype", "beartype")):
