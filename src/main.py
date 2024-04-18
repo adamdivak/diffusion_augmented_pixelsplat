@@ -127,12 +127,25 @@ def train(cfg_dict: DictConfig):
 
     if cfg.mode == "train":
         trainer.fit(model_wrapper, datamodule=data_module, ckpt_path=checkpoint_path)
-    else:
+    elif cfg.mode == "test":
+        if cfg.test.data_loader == "train":
+            data_loader = data_module.train_dataloader()
+        elif cfg.test.data_loader == "val":
+            data_loader = data_module.val_dataloader()
+        elif cfg.test.data_loader == "test":
+            data_loader = data_module.test_dataloader()
+        else:
+            raise Exception(f"")
         trainer.test(
             model_wrapper,
-            datamodule=data_module,
+            # By default this would use the test loader,
+            # but we are actually more interested in exporting the training images for now,
+            # so the correct loader is manually selected above.
+            dataloaders=data_loader,
             ckpt_path=checkpoint_path,
         )
+    else:
+        raise Exception(f"Unknown mode {cfg.mode}")
 
 
 if __name__ == "__main__":

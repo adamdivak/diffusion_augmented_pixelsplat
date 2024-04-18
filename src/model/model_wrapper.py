@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Protocol, runtime_checkable
+from typing import Literal, Optional, Protocol, runtime_checkable
 
 import moviepy.editor as mpy
 import torch
@@ -47,7 +47,7 @@ class OptimizerCfg:
 @dataclass
 class TestCfg:
     output_path: Path
-
+    data_loader: Literal["train", "val", "test"]
 
 @dataclass
 class TrainCfg:

@@ -49,6 +49,7 @@ train:
 
 test:
   output_path: outputs/test
+  data_loader: test
 
 seed: 111123
 

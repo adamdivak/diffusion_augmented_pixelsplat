@@ -12,6 +12,11 @@ Check out their [project website here](https://dcharatan.github.io/pixelsplat).
 - Choose and incorporate a diffusion model
 - Use the output of the diffusion model to supervise pixelSplat
 
+## Export training images
+```bash
+!python3 -m src.main +experiment=re10k mode=test test.data_loader="train" test.output_path="outputs/re10k_train_data" data_loader.train.batch_size=1 checkpointing.load=checkpoints/re10k.ckpt
+```
+
 ## Demo - in progress
 Running the demo:
 ```bash
