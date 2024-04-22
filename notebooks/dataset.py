@@ -36,8 +36,6 @@ def get_data(conditioning_folder, real_folder, prompts):
     
     return dataset
 
-
-
 def create_dataset(data):
     """
     Create a HuggingFace dataset from a set of (conditioning image, ground truth image, prompt) tuples.
@@ -66,3 +64,7 @@ def create_dataset(data):
         
     return Dataset.from_dict(dataset_dict)
 
+
+if __name__ == "__main__":
+    dataset = get_data(conditioning_folder, real_folder, prompts)
+    create_dataset(dataset)

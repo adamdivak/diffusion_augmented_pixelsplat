@@ -17,9 +17,21 @@ cd diffusers
 pip install -e .
 ```
 
-Then cd in the example folder and run
+Then cd in the example folder and run (already in this folder)
 ```bash
 pip install -r requirements.txt
+```
+
+For this i put my credentials in the google docs which you can use.
+Make sure you have write priviliges.
+```bash
+huggingface-cli login
+wandb login 
+```
+
+I forgot if this one was necessary (i think it failed)
+```bash
+pip install git+https://github.com/huggingface/diffusers.git transformers accelerate xformers==0.0.16 wandb
 ```
 
 And initialize an [🤗Accelerate](https://github.com/huggingface/accelerate/) environment with:

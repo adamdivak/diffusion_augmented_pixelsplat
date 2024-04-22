@@ -91,11 +91,11 @@ def demo(cfg_dict):
     # Render Gaussians
     gaussians = encoder(batch["context"], global_step=1, deterministic=False)  # TODO this fails:
     # num_rendered, color, radii, geomBuffer, binningBuffer, imgBuffer = _C.rasterize_gaussians(*args)
-    # RuntimeError: an illegal memory access was encountered, known error
+    # RuntimeError: an illegal memory access was encountered (known error)
     # https://github.com/graphdeco-inria/gaussian-splatting/issues/41#issuecomment-1752279620 doesnt help
     # it is strange as it does the same as in model_wrapper.py which works
 
-    # Decoder, TODO this seems heavily inefficient (but is used)
+    # Decoder
     color = []
     for i in range(0, batch["target"]["far"].shape[1], 32):
         output = decoder.forward(
@@ -109,7 +109,7 @@ def demo(cfg_dict):
         color.append(output.color)
     color = torch.cat(color, dim=1)
 
-    # Save images
+    # Save images, probably better to write some code for this ourselves
     (scene,) = batch["scene"]
     name = get_cfg()["wandb"]["name"]
     path = test_cfg.output_path / name
