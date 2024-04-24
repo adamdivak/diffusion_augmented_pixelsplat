@@ -18,6 +18,10 @@ cd diffusers
 pip install -e .
 ```
 
+conditioning_image-0-16ABCACEB9C0EB6E63DD8EF366EABCF992991A41
+conditioning_image-17-C204CCEEC340518592C6DCD028C5DD0BC0164237
+conditioning_image-56-F0021BECE9CDFABB0D72191E4B236613D93B6551
+
 Then cd in the example folder and run (already in this folder)
 ```bash
 pip install -r requirements.txt
