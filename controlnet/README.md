@@ -9,6 +9,7 @@ This example is based on the [training example in the original ControlNet reposi
 Before running the scripts, make sure to install the library's training dependencies:
 
 **Important**
+Also here we need a gpu for testing the model
 
 To make sure you can successfully run the latest versions of the example scripts, we highly recommend **installing from source** and keeping the install up to date as we update the example scripts frequently and install some example-specific requirements. To do this, execute the following steps in a new virtual environment:
 ```bash
@@ -20,6 +21,11 @@ pip install -e .
 Then cd in the example folder and run (already in this folder)
 ```bash
 pip install -r requirements.txt
+```
+
+really need to do this though
+```bash
+conda install -c conda-forge accelerate
 ```
 
 For this i put my credentials in the google docs which you can use.

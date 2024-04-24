@@ -50,7 +50,11 @@ def get_data(data_path):
         tuple: Tuple containing conditioning images, ground truth images, and prompts.
     """
         
-    dataset = []
+    dataset_dict = {
+        "conditioning_image": [],
+        "ground_truth_image": [],
+        "prompt": []
+    }
     for image_folder in os.listdir(data_path):  # TODO only use a subset here cause dataset large
         image_path = os.path.join(data_path, image_folder)
         if os.path.isdir(image_path):
@@ -61,10 +65,13 @@ def get_data(data_path):
             prompts = ["The same image but fixing small physical and illumination inconsistencies"]*len(outputs)
             for o, t, p in zip(output_paths, target_paths, prompts):
                 try:
-                    dataset.append((Image.open(o), Image.open(t), p))
+                    dataset_dict["conditioning_image"].append(Image.open(o))
+                    dataset_dict["ground_truth_image"].append(Image.open(t))
+                    dataset_dict["prompt"].append(p)
                 except:  # Didn't happen but just to be sure
                     continue
-    return dataset
+    return Dataset.from_dict(dataset_dict)
+    
 
 def create_dataset(data):
     """
@@ -96,9 +103,10 @@ def create_dataset(data):
 
 
 if __name__ == "__main__":
-    entries = get_data("re10k")
-    dataset = create_dataset(entries)
-    # dataset.push_to_hub("re10ksmalltest")  #dont know how large this can be
+    dataset = get_data("re10k")
+    # dataset = create_dataset(entries)
+    print("hi")
+    dataset.push_to_hub("re10ksmalltest")  #dont know how large this can be
     # may need https://discuss.huggingface.co/t/uploading-files-larger-than-5gb-to-model-hub/4081
     # os.makedirs("/reallynicefolder")
-    dataset.save_to_disk("/reallynicefolder")
+    # dataset.save_to_disk("/reallynicefolder")
