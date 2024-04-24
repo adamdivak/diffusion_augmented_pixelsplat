@@ -4,14 +4,10 @@ This code builds upon the code from the paper **pixelSplat: 3D Gaussian Splats f
 
 Check out their [project website here](https://dcharatan.github.io/pixelsplat).
 
-## Short-term TODO's
-- Find out how to run the code for 2 images
-- Find out how to get the evaluation results
-
 ## TODO
-- Choose and incorporate a diffusion model
-- Use the output of the diffusion model to supervise pixelSplat
-
+- Consider which diffusion model to use
+- Find a way to process the full data in a meaningful and possible way
+  
 ## Export training images
 ```bash
 !python3 -m src.main +experiment=re10k mode=test test.data_loader="train" test.output_path="outputs/re10k_train_data" data_loader.train.batch_size=1 checkpointing.load=checkpoints/re10k.ckpt
