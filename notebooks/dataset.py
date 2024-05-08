@@ -62,14 +62,17 @@ def get_data(data_path):
             targets = [f for f in os.listdir(os.path.join(image_path, "target")) if f.endswith('.png')]
             output_paths = [os.path.join(image_path, "color", output) for output in outputs]
             target_paths = [os.path.join(image_path, "target", target) for target in targets]
-            prompts = ["The same image but fixing small physical and illumination inconsistencies"]*len(outputs)
+            prompts = [""]*len(outputs)
             for o, t, p in zip(output_paths, target_paths, prompts):
                 try:
-                    dataset_dict["conditioning_image"].append(Image.open(o))
-                    dataset_dict["ground_truth_image"].append(Image.open(t))
-                    dataset_dict["prompt"].append(p)
+                    with Image.open(o) as output_image, Image.open(t) as target_image:
+                        dataset_dict["conditioning_image"].append(output_image)
+                        dataset_dict["ground_truth_image"].append(target_image)
+                        dataset_dict["prompt"].append("")
                 except:  # Didn't happen but just to be sure
                     continue
+    print(len(dataset_dict["prompt"]))
+
     return Dataset.from_dict(dataset_dict)
     
 
