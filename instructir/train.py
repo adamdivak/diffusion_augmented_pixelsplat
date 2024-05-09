@@ -1,17 +1,26 @@
-from utils import *
 from models import instructir
 import yaml
-from torch.utils.data import DataLoader, Dataset
 from datasets import load_dataset
 from text.models import LanguageModel, LMHead
-import matplotlib.pyplot as plt
 from torchvision import transforms
-from torchvision.utils import save_image
 import wandb
-from huggingface_hub import create_repo, upload_folder
+from huggingface_hub import create_repo, upload_folder, HfApi, hf_hub_download
 from diffusers.utils.hub_utils import load_or_create_model_card, populate_model_card
 from PIL import Image
-from huggingface_hub import HfApi
+import os
+import argparse
+import torch
+
+
+def dict2namespace(config):
+    namespace = argparse.Namespace()
+    for key, value in config.items():
+        if isinstance(value, dict):
+            new_value = dict2namespace(value)
+        else:
+            new_value = value
+        setattr(namespace, key, new_value)
+    return namespace
 
 def image_grid(imgs, rows, cols):
     assert len(imgs) == rows * cols
@@ -24,8 +33,6 @@ def image_grid(imgs, rows, cols):
         img_pil = Image.fromarray(img.transpose(1, 2, 0))
         grid.paste(img_pil, box=(i % cols * w, i // cols * h))
     return grid
-
-
 
 def save_model_card(repo_id: str, image_logs=None, base_model=str, repo_folder=None):
     img_str = ""
@@ -71,169 +78,182 @@ These are controlnet weights trained on {base_model} with new type of conditioni
     model_card.save(os.path.join(repo_folder, "README.md"))
 
 
-def main():
+def main(args):
     os.environ["WANDB_API_KEY"] = ""  # TODO change this: ask wouter
-
-    wandb.init(
-        project="nice_model",
-        entity="CV2-project",
-    )
+    wandb.init(project="nice_model", entity="CV2-project")
 
     CONFIG     = "configs/eval5d.yml"
     LM_MODEL   = "models/lm_instructir-7d.pt"
     MODEL_NAME = "models/im_instructir-7d.pt"
 
-    # parse config file
-    with open(os.path.join(CONFIG), "r") as f:
-        config = yaml.safe_load(f)
+    if args.model_path != None:
+        MODEL_NAME = hf_hub_download(repo_id="Wouter01/really_nice_model", filename=args.model_path)
 
+    with open(os.path.join(CONFIG), "r") as f: config = yaml.safe_load(f)
     cfg = dict2namespace(config)
 
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
     # Initialize the LanguageModel class
     LMODEL = cfg.llm.model
-    language_model = LanguageModel(model=LMODEL)
-    for p in language_model.parameters():
-        p.requires_grad = False
+    language_model = LanguageModel(model=LMODEL).to(device)
+    language_model.eval()
+    for p in language_model.parameters(): p.requires_grad = False
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    lm_head = LMHead(embedding_dim=cfg.llm.model_dim, hidden_dim=cfg.llm.embd_dim, num_classes=cfg.llm.nclasses)
-    lm_head = lm_head.to(device)
-
-    
+    # Initialize the LMHead class
+    lm_head = LMHead(embedding_dim=cfg.llm.model_dim, hidden_dim=cfg.llm.embd_dim, num_classes=cfg.llm.nclasses).to(device)
     lm_head.load_state_dict(torch.load(LM_MODEL, map_location=device), strict=True)
+    lm_head = lm_head.to(device)
+    lm_head.eval()
+    for p in lm_head.parameters(): p.requires_grad = False
 
-    lm_embd = language_model("Please make the image crispier, sharper")
-    text_embd, deg_pred = lm_head (lm_embd)
+    # For some reason the collator doesnt work with prompts obtained from gpu
+    # This is not a problem as we use the same prompt for all images and thus the only forward pass is here
+    language_model = language_model.to("cpu")
+    prompt_input = language_model("Please make the image crispier and sharper").to("cpu")
+    lm_head = lm_head.to("cpu")
+    prompt_output = lm_head(prompt_input)[0]
 
-    data = load_dataset("Wouter01/re10ksmalltest")["train"] #["default"] #["test"]
-    transform = transforms.Compose([
-        transforms.Resize((256, 256)),  # Resize the image to 256x256
-        transforms.ToTensor(),           # Convert the image to a PyTorch tensor
-    ])
+    def preprocess_train(examples):
+        transform = transforms.Compose([
+            transforms.Resize((256, 256)),  # Resize the image to 256x256, if not already
+            transforms.ToTensor(),          # Convert the image to a PyTorch tensor
+        ])
 
-    text_embd = text_embd.detach().clone()
+        images = [transform(image.convert("RGB")) for image in examples["ground_truth_image"]]
+        conditioning_images = [transform(image.convert("RGB")) for image in examples["conditioning_image"]]
+        prompts = [prompt_output for _ in examples["prompt"]]  # Same prompt for all images
 
-    transformed_data = [(transform(sample['conditioning_image']).squeeze(), transform(sample['ground_truth_image']).squeeze(), text_embd) for sample in data]
-    dataloader = torch.utils.data.DataLoader(transformed_data[:280], batch_size=32, shuffle=True)
+        examples["ground_truth_image"] = images
+        examples["conditioning_image"] = conditioning_images
+        examples["prompt"] = prompts
 
+        return examples
 
-    # validation data
-    # val_data = load_dataset("Wouter01/re10ksmalltrain")["train"]
-    # t_data = [(transform(sample['conditioning_image']).squeeze(), transform(sample['ground_truth_image']).squeeze(), text_embd) for sample in val_data]
-    val_loader = torch.utils.data.DataLoader(transformed_data[-20:], batch_size=32, shuffle=False)
-
-    img_loader = torch.utils.data.DataLoader(transformed_data[-3:], batch_size=1, shuffle=False)
-
-    with open(os.path.join(CONFIG), "r") as f:
-        config = yaml.safe_load(f)
+    # Get the datasets from huggingface and cache them locally
+    dataset_train = load_dataset("Wouter01/re10ktrain", cache_dir="cachedir")["train"].with_transform(preprocess_train)
+    dataset_val = load_dataset("Wouter01/re10ksmalltest", cache_dir="cachedir")["train"].with_transform(preprocess_train)
+    dataset_img = load_dataset("Wouter01/re10ksmalltrainn", cache_dir="cachedir")["train"].with_transform(preprocess_train)
     
-    cfg = dict2namespace(config)
-    model = instructir.create_model(input_channels =cfg.model.in_ch, width=cfg.model.width, enc_blks = cfg.model.enc_blks, 
-                                middle_blk_num = cfg.model.middle_blk_num, dec_blks = cfg.model.dec_blks, txtdim=cfg.model.textdim)
+    # Merges a list of samples to form a mini-batch of Tensor(s) for batched loading from a map-style dataset
+    def collate_fn(examples):
+        conditioning_image = torch.stack([example["conditioning_image"] for example in examples])
+        conditioning_image = conditioning_image.to(memory_format=torch.contiguous_format).float()
+
+        ground_truth_image = torch.stack([example["ground_truth_image"] for example in examples])
+        ground_truth_image = ground_truth_image.to(memory_format=torch.contiguous_format).float()
+
+        prompt = torch.stack([example["prompt"] for example in examples])
+        prompt = prompt.to(memory_format=torch.contiguous_format).float()
+
+        return {
+            "conditioning_image": conditioning_image,
+            "ground_truth_image": ground_truth_image,
+            "prompt": prompt,
+        }
+
+    # Get the dataloaders, img_loader is for displaying images on wandb
+    train_loader = torch.utils.data.DataLoader(dataset_train, collate_fn=collate_fn, batch_size=2, shuffle=True, num_workers=4)
+    val_loader = torch.utils.data.DataLoader(dataset_val, collate_fn=collate_fn, batch_size=2, shuffle=False, num_workers=4)
+    img_loader = torch.utils.data.DataLoader(dataset_img, collate_fn=collate_fn, batch_size=1, shuffle=False, num_workers=4)
+
+    # Load the main model
+    model = instructir.create_model(input_channels =cfg.model.in_ch, width=cfg.model.width, enc_blks = cfg.model.enc_blks, middle_blk_num = cfg.model.middle_blk_num, dec_blks = cfg.model.dec_blks, txtdim=cfg.model.textdim)
     model.load_state_dict(torch.load(MODEL_NAME, map_location=device), strict=True)
+    model = model.to(device)  # just to be sure
 
-    model = model.to(device)
-
-    nparams   = count_params (model)
-    print ("Loaded weights!", nparams / 1e6)
-    # criterion = torch.nn.MSELoss()
-    criterion = torch.nn.L1Loss()
-
-    # logging stuff
+    # We push the best model to huggingface
     os.makedirs("model_out", exist_ok=True)
     repo_id = create_repo(
-                repo_id="really_nice_model", exist_ok=True, token=""
+                repo_id="InstructIR_with_inpainting", exist_ok=True, token=""
             ).repo_id
     
-    # Define optimizer (e.g., Adam)
-    # use cosine annealing learning rate decay
-    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-5)
-    # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=30)
+    criterion = torch.nn.L1Loss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
 
     model.eval()
     val_loss = 0
-    # for image, target, prompt in val_loader:
-    #     image = image.to(device)
-    #     target = target.to(device)
-    #     prompt = prompt.to(device)
-    #     output = model(image, prompt.squeeze())
+    for batch in val_loader:
+        image = batch["conditioning_image"].to(device)
+        target = batch["ground_truth_image"].to(device)
+        prompt = batch["prompt"].to(device)
+        output = model(image, prompt.squeeze())
 
-    #     loss = criterion(output, target)
-    #     val_loss += loss.item()
-    # best_val_loss =  val_loss / len(val_loader)
-    best_val_loss = 100000
+        loss = criterion(output, target)
+        val_loss += loss.item()
+    best_val_loss =  val_loss / len(val_loader)
     best_model = None
 
-    n_steps = 0
+    n_steps = 0  # Used to determine when to log
+    
     # Training loop
-    for epoch in range(30):
+    for epoch in range(args.num_epochs):
         model.train()
+        language_model.eval()
+
         # Iterate over dataset
-        for input, target, prompt in dataloader:
-            input = input.to(device)
-            target = target.to(device)
-            prompt = prompt.to(device)
+        for batch in train_loader:
+            image = batch["conditioning_image"].to(device)
+            target = batch["ground_truth_image"].to(device)
+            prompt = batch["prompt"].to(device)
 
             optimizer.zero_grad()
-
-            output = model(input, prompt.squeeze())
-
+            output = model(image, prompt.squeeze())
             loss = criterion(output, target)
+            loss.backward()
+            optimizer.step()
 
             wandb.log({"loss": loss.item()})
 
-            loss.backward()
-            
-            optimizer.step()
+            # validation and printing every n steps
             n_steps += 1
-    
-            # validation and printing
-            if n_steps % 1 == 0:
-                n_steps = 0
+            if n_steps % args.eval_steps == 0:
+                n_steps = 0  # reset steps
+
                 # validation
                 model.eval()
                 val_loss = 0
-                for image, target, prompt in val_loader:
-                    image = image.to(device)
-                    target = target.to(device)
-                    prompt = prompt.to(device)
+                for batch in val_loader:
+                    image = batch["conditioning_image"].to(device)
+                    target = batch["ground_truth_image"].to(device)
+                    prompt = batch["prompt"].to(device)
+                    
                     output = model(image, prompt.squeeze())
 
                     loss = criterion(output, target)
                     val_loss += loss.item()
+
                 val_loss /= len(val_loader)
-                wandb.log({"val_loss": val_loss})
+                wandb.log({"val_loss": val_loss})  # Log the validation loss
+
                 if val_loss < best_val_loss:
                     best_val_loss = val_loss
                     best_model = model.state_dict()
                     torch.save(best_model, "best_model.pt")
 
-                    # push the model to the hub
-                    
+                    # Push the best model so far to the hub, sometimes this doesnt work so 10 retries
                     for _ in range(10):
                         try:
                             api = HfApi()
                             api.upload_file(
                                 path_or_fileobj="best_model.pt",
-                                path_in_repo="really_nice_model/best_model.pt",
+                                path_in_repo="InstructIR_with_inpainting/best_model.pt",
                                 repo_id=repo_id,
                             )
                         except:
                             continue
                         break
 
-                # printing
+                # Log some sample images that are not in the training set to wandb
                 image_logs = []
                 log = []
-                for image, target, prompt in img_loader:
-                    image = image.to(device)
-                    target = target.to(device)
-                    prompt = prompt.to(device)
+                for batch in img_loader:
+                    image = batch["conditioning_image"].to(device)
+                    target = batch["ground_truth_image"].to(device)
+                    prompt = batch["prompt"].to(device)
                     output = model(image, prompt.squeeze())
 
-                    wandb.log({"val_loss": criterion(output, target).item()})
                     image_logs.append(
                         {
                             "input": image.squeeze(),
@@ -245,18 +265,37 @@ def main():
 
                     log += [image.squeeze(), output.squeeze(), target.squeeze()]
 
-                wandb.log({"INPUT OUTPUT TARGET": [wandb.Image(image.detach().numpy().transpose((1, 2, 0))) for image in log]})
-            # save_model_card(
-            #     repo_id,
-            #     image_logs=image_logs,
-            #     repo_folder="really_nice_model",
-            # )
-            # upload_folder(
-            #     repo_id=repo_id,
-            #     folder_path="really_nice_model",
-            #     commit_message="End of training",
-            #     ignore_patterns=["step_*", "epoch_*"],
-            # )
+                wandb.log({"INPUT OUTPUT TARGET": [wandb.Image(image.detach().cpu().numpy().transpose((1, 2, 0))) for image in log]})
+
+    # Some display of latest results for huggingface TODO if time 
+    # save_model_card(
+    #     repo_id,
+    #     image_logs=image_logs,
+    #     repo_folder="InstructIR_with_inpainting",
+    # )
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Script for training a model.")
+    
+    # Learning rate argument
+    parser.add_argument("--learning_rate", type=float, default=0.0001,
+                        help="Learning rate for training the model (default: 0.0001)")
+
+    # Number of epochs argument
+    parser.add_argument("--num_epochs", type=int, default=3,
+                        help="Number of epochs for training (default: 3)")
+    
+    # Number of steps between evaluation argument
+    parser.add_argument("--eval_steps", type=int, default=500,
+                        help="Number of steps between evaluations (default: 500)")
+    
+    # Model path argument
+    parser.add_argument("--model_path", type=str, default=None,
+                        help="Path to save the trained model (default: None)")
+    
+    return parser.parse_args()
     
 if __name__ == "__main__":
-    main()
+    args = parse_args()
+    main(args)
