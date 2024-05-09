@@ -11,7 +11,7 @@ import wandb
 from huggingface_hub import create_repo, upload_folder
 from diffusers.utils.hub_utils import load_or_create_model_card, populate_model_card
 from PIL import Image
-
+from huggingface_hub import HfApi
 
 def image_grid(imgs, rows, cols):
     assert len(imgs) == rows * cols
@@ -97,15 +97,17 @@ def main():
     for p in language_model.parameters():
         p.requires_grad = False
 
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     lm_head = LMHead(embedding_dim=cfg.llm.model_dim, hidden_dim=cfg.llm.embd_dim, num_classes=cfg.llm.nclasses)
-    lm_head = lm_head #.to(device)
+    lm_head = lm_head.to(device)
 
-    lm_head.load_state_dict(torch.load(LM_MODEL, map_location=torch.device('cpu')), strict=True)
+    
+    lm_head.load_state_dict(torch.load(LM_MODEL, map_location=device), strict=True)
 
     lm_embd = language_model("Please make the image crispier, sharper")
     text_embd, deg_pred = lm_head (lm_embd)
 
-    data = load_dataset("Wouter01/re10ksmalltrain")["train"]
+    data = load_dataset("Wouter01/re10ksmalltest")["train"] #["default"] #["test"]
     transform = transforms.Compose([
         transforms.Resize((256, 256)),  # Resize the image to 256x256
         transforms.ToTensor(),           # Convert the image to a PyTorch tensor
@@ -114,23 +116,23 @@ def main():
     text_embd = text_embd.detach().clone()
 
     transformed_data = [(transform(sample['conditioning_image']).squeeze(), transform(sample['ground_truth_image']).squeeze(), text_embd) for sample in data]
-    dataloader = torch.utils.data.DataLoader(transformed_data, batch_size=32, shuffle=True)
+    dataloader = torch.utils.data.DataLoader(transformed_data[:280], batch_size=32, shuffle=True)
 
 
     # validation data
-    val_data = load_dataset("Wouter01/re10ksmalltrain")["train"]
-    t_data = [(transform(sample['conditioning_image']).squeeze(), transform(sample['ground_truth_image']).squeeze(), text_embd) for sample in val_data]
-    val_loader = torch.utils.data.DataLoader(t_data, batch_size=1, shuffle=False)
+    # val_data = load_dataset("Wouter01/re10ksmalltrain")["train"]
+    # t_data = [(transform(sample['conditioning_image']).squeeze(), transform(sample['ground_truth_image']).squeeze(), text_embd) for sample in val_data]
+    val_loader = torch.utils.data.DataLoader(transformed_data[-20:], batch_size=32, shuffle=False)
+
+    img_loader = torch.utils.data.DataLoader(transformed_data[-3:], batch_size=1, shuffle=False)
 
     with open(os.path.join(CONFIG), "r") as f:
         config = yaml.safe_load(f)
     
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
     cfg = dict2namespace(config)
     model = instructir.create_model(input_channels =cfg.model.in_ch, width=cfg.model.width, enc_blks = cfg.model.enc_blks, 
                                 middle_blk_num = cfg.model.middle_blk_num, dec_blks = cfg.model.dec_blks, txtdim=cfg.model.textdim)
-    model.load_state_dict(torch.load(MODEL_NAME, map_location=torch.device('cpu')), strict=True)
+    model.load_state_dict(torch.load(MODEL_NAME, map_location=device), strict=True)
 
     model = model.to(device)
 
@@ -142,14 +144,32 @@ def main():
     # logging stuff
     os.makedirs("model_out", exist_ok=True)
     repo_id = create_repo(
-                repo_id="really_nice_model", exist_ok=True, token="TODO fill in token"
+                repo_id="really_nice_model", exist_ok=True, token=""
             ).repo_id
     
     # Define optimizer (e.g., Adam)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
-    model.train()
+    # use cosine annealing learning rate decay
+    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-5)
+    # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=30)
+
+    model.eval()
+    val_loss = 0
+    # for image, target, prompt in val_loader:
+    #     image = image.to(device)
+    #     target = target.to(device)
+    #     prompt = prompt.to(device)
+    #     output = model(image, prompt.squeeze())
+
+    #     loss = criterion(output, target)
+    #     val_loss += loss.item()
+    # best_val_loss =  val_loss / len(val_loader)
+    best_val_loss = 100000
+    best_model = None
+
+    n_steps = 0
     # Training loop
     for epoch in range(30):
+        model.train()
         # Iterate over dataset
         for input, target, prompt in dataloader:
             input = input.to(device)
@@ -167,32 +187,65 @@ def main():
             loss.backward()
             
             optimizer.step()
+            n_steps += 1
     
-        # Print progress
-        if epoch % 1 == 0:
-            image_logs = []
-            for image, target, prompt in val_loader:
-                image = image.to(device)
-                target = target.to(device)
-                prompt = prompt.to(device)
-                output = model(image, prompt.squeeze())
+            # validation and printing
+            if n_steps % 1 == 0:
+                n_steps = 0
+                # validation
+                model.eval()
+                val_loss = 0
+                for image, target, prompt in val_loader:
+                    image = image.to(device)
+                    target = target.to(device)
+                    prompt = prompt.to(device)
+                    output = model(image, prompt.squeeze())
 
-                wandb.log({"val_loss": criterion(output, target).item()})
-                image_logs.append(
-                    {
-                        "input": image.squeeze(),
-                        "output": output.squeeze(),
-                        "validation_prompt": "Please make the image crispier, sharper",
-                        "validation_image": target.squeeze(),
-                    }
-                )
-                # save these image_logs to wamndb
-                # Assuming image_grid is a function that generates an image grid from a list of images
-                a = [image.squeeze(), output.squeeze(), target.squeeze()]
+                    loss = criterion(output, target)
+                    val_loss += loss.item()
+                val_loss /= len(val_loader)
+                wandb.log({"val_loss": val_loss})
+                if val_loss < best_val_loss:
+                    best_val_loss = val_loss
+                    best_model = model.state_dict()
+                    torch.save(best_model, "best_model.pt")
 
-                # Convert the image grid to a list of PIL Images or numpy arrays
-                # Log the image grid to WandB
-                wandb.log({"INPUT OUTPUT TARGET": [wandb.Image(image.detach().numpy().transpose((1, 2, 0))) for image in a]})
+                    # push the model to the hub
+                    
+                    for _ in range(10):
+                        try:
+                            api = HfApi()
+                            api.upload_file(
+                                path_or_fileobj="best_model.pt",
+                                path_in_repo="really_nice_model/best_model.pt",
+                                repo_id=repo_id,
+                            )
+                        except:
+                            continue
+                        break
+
+                # printing
+                image_logs = []
+                log = []
+                for image, target, prompt in img_loader:
+                    image = image.to(device)
+                    target = target.to(device)
+                    prompt = prompt.to(device)
+                    output = model(image, prompt.squeeze())
+
+                    wandb.log({"val_loss": criterion(output, target).item()})
+                    image_logs.append(
+                        {
+                            "input": image.squeeze(),
+                            "output": output.squeeze(),
+                            "validation_prompt": "Please make the image crispier, sharper",
+                            "validation_image": target.squeeze(),
+                        }
+                    )
+
+                    log += [image.squeeze(), output.squeeze(), target.squeeze()]
+
+                wandb.log({"INPUT OUTPUT TARGET": [wandb.Image(image.detach().numpy().transpose((1, 2, 0))) for image in log]})
             # save_model_card(
             #     repo_id,
             #     image_logs=image_logs,
