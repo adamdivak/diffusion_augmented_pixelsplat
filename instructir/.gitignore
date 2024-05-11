@@ -1,5 +1,5 @@
 new_samples/
-*.ipynb
+# *.ipynb
 *.zip
 # */
 
