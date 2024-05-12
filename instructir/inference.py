@@ -13,12 +13,23 @@ from datasets import load_dataset
 from text.models import LanguageModel, LMHead
 from torchvision import transforms
 from torchmetrics.image import PeakSignalNoiseRatio
+from einops import reduce
 
 
 SEED=42
 seed_everything(SEED=SEED)
 torch.backends.cudnn.deterministic = True
 
+
+@torch.no_grad()
+def compute_psnr(
+    ground_truth,
+    predicted,
+):
+    ground_truth = ground_truth.clip(min=0, max=1)
+    predicted = predicted.clip(min=0, max=1)
+    mse = reduce((ground_truth - predicted) ** 2, "b c h w -> b", "mean")
+    return -10 * mse.log10()
 
 def main():
     CONFIG     = "configs/eval5d.yml"
@@ -69,15 +80,34 @@ def main():
     lm_head = lm_head.to("cpu")
     prompt_output = lm_head(prompt_input)[0]
 
+    # def preprocess_train(examples):
+    #     transform = transforms.Compose([
+    #         transforms.Resize((256, 256)),  # Resize the image to 256x256
+    #         transforms.ToTensor(),           # Convert the image to a PyTorch tensor
+    #     ])
+    
+    #     images = [transform(image.convert("RGB")) for image in examples["ground_truth_image"]]
+    #     conditioning_images = [transform(image.convert("RGB")) for image in examples["conditioning_image"]]
+    #     prompts = [prompt_output for p in examples["prompt"]]
+
+    #     examples["ground_truth_image"] = images
+    #     examples["conditioning_image"] = conditioning_images
+    #     examples["prompt"] = prompts
+
+    #     return examples
     def preprocess_train(examples):
         transform = transforms.Compose([
             transforms.Resize((256, 256)),  # Resize the image to 256x256
             transforms.ToTensor(),           # Convert the image to a PyTorch tensor
         ])
 
-        images = [transform(image.convert("RGB")) for image in examples["ground_truth_image"]]
-        conditioning_images = [transform(image.convert("RGB")) for image in examples["conditioning_image"]]
-        prompts = [prompt_output for p in examples["prompt"]]
+        images, conditioning_images, prompts = list(), list(), list()
+        for i1, i2, i3 in zip(examples["ground_truth_image"], examples["conditioning_image"], examples["prompt"]):
+            image_tensor = transform(i1.convert("RGB"))
+            if not torch.any(image_tensor == 0):
+                images.append(image_tensor)
+                conditioning_images.append(transform(i2.convert("RGB")))
+                prompts.append(prompt_output)
 
         examples["ground_truth_image"] = images
         examples["conditioning_image"] = conditioning_images
@@ -88,6 +118,7 @@ def main():
     dataset_val = load_dataset("Wouter01/re10k_pixelsplat_hard", cache_dir="cachedir")["test"].with_transform(preprocess_train)
     
     def collate_fn(examples):
+        if not examples: return None
         conditioning_image = torch.stack([example["conditioning_image"] for example in examples])
         conditioning_image = conditioning_image.to(memory_format=torch.contiguous_format).float()
 
@@ -113,8 +144,9 @@ def main():
     model = model.to(device)
     our_loss = pixelsplat_loss = 0
     our_psnr = pixelsplat_psnr = 0
-
+    count = 0
     for batch in tqdm(val_loader):  # this is test set 
+        if batch == None: continue
         image = batch["conditioning_image"].to(device)
         target = batch["ground_truth_image"].to(device)
         prompt = batch["prompt"].to(device)
@@ -123,17 +155,20 @@ def main():
 
         loss = criterion(output, target)
         our_loss += loss.item()
-        our_psnr += psnr(output, target).item()
-
+        # our_psnr += psnr(output, target).item()
+        our_psnr += compute_psnr(output, target).sum().item()
+        count += image.size(0)
         loss = criterion(image, target)
         pixelsplat_loss += loss.item()
-        pixelsplat_psnr += psnr(image, target).item()
+        # pixelsplat_psnr += psnr(image, target).item()
+        pixelsplat_psnr += compute_psnr(image, target).sum().item()
 
-    print("Our loss: ", our_loss)
-    print("Pixelsplat loss: ", pixelsplat_loss)
+    print(count)
+    print("Our loss: ", our_loss / count)
+    print("Pixelsplat loss: ", pixelsplat_loss / count)
 
-    print("Our psnr: ", our_psnr)
-    print("pixelsplat psnr", pixelsplat_psnr)
+    print("Our psnr: ", our_psnr / count)
+    print("pixelsplat psnr", pixelsplat_psnr / count)
 
 
 if __name__ == "__main__":
