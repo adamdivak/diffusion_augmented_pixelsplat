@@ -14,6 +14,11 @@ from text.models import LanguageModel, LMHead
 from torchvision import transforms
 from torchmetrics.image import PeakSignalNoiseRatio
 from einops import reduce
+from functools import cache
+
+from lpips import LPIPS
+from skimage.metrics import structural_similarity
+from torch import Tensor
 
 
 SEED=42
@@ -31,11 +36,43 @@ def compute_psnr(
     mse = reduce((ground_truth - predicted) ** 2, "b c h w -> b", "mean")
     return -10 * mse.log10()
 
+@cache
+def get_lpips(device: torch.device) -> LPIPS:
+    return LPIPS(net="vgg").to(device)
+
+
+@torch.no_grad()
+def compute_lpips(
+    ground_truth,
+    predicted,
+):
+    value = get_lpips(predicted.device).forward(ground_truth, predicted, normalize=True)
+    return value[:, 0, 0, 0]
+
+@torch.no_grad()
+def compute_ssim(
+    ground_truth,
+    predicted,
+):
+    ssim = [
+        structural_similarity(
+            gt.detach().cpu().numpy(),
+            hat.detach().cpu().numpy(),
+            win_size=11,
+            gaussian_weights=True,
+            channel_axis=0,
+            data_range=1.0,
+        )
+        for gt, hat in zip(ground_truth, predicted)
+    ]
+    return torch.tensor(ssim, dtype=predicted.dtype, device=predicted.device)
+
+
 def main():
     CONFIG     = "configs/eval5d.yml"
     LM_MODEL   = "models/lm_instructir-7d.pt"
     MODEL_NAME =  hf_hub_download(repo_id="Wouter01/InstructIR_re10k_hard", filename="best_model.pt")
-
+    MODEL_NAME_ORIGINAL = "models/im_instructir-7d.pt" 
     with open(os.path.join(CONFIG), "r") as f: config = yaml.safe_load(f)
     cfg = dict2namespace(config)
 
@@ -45,6 +82,9 @@ def main():
     print ("Creating InstructIR")
     model = instructir.create_model(input_channels =cfg.model.in_ch, width=cfg.model.width, enc_blks = cfg.model.enc_blks, 
                                 middle_blk_num = cfg.model.middle_blk_num, dec_blks = cfg.model.dec_blks, txtdim=cfg.model.textdim)
+                            
+    model_original = instructir.create_model(input_channels =cfg.model.in_ch, width=cfg.model.width, enc_blks = cfg.model.enc_blks, 
+                                middle_blk_num = cfg.model.middle_blk_num, dec_blks = cfg.model.dec_blks, txtdim=cfg.model.textdim)
 
     ################### LOAD IMAGE MODEL
 
@@ -52,7 +92,7 @@ def main():
 
     print ("IMAGE MODEL CKPT:", MODEL_NAME)
     model.load_state_dict(torch.load(MODEL_NAME, map_location=device), strict=True)
-
+    model_original.load_state_dict(torch.load(MODEL_NAME_ORIGINAL, map_location=device), strict=True)
     nparams   = count_params (model)
     print ("Loaded weights!", nparams / 1e6)
 
@@ -134,7 +174,7 @@ def main():
             "prompt": prompt,
         }
 
-    val_loader = torch.utils.data.DataLoader(dataset_val, collate_fn=collate_fn, batch_size=4, shuffle=False, num_workers=4)
+    val_loader = torch.utils.data.DataLoader(dataset_val, collate_fn=collate_fn, batch_size=2, shuffle=False, num_workers=4)
     
     criterion = torch.nn.L1Loss()  # replace this with a function that calculates a metric
     psnr = PeakSignalNoiseRatio()
@@ -142,8 +182,12 @@ def main():
 
     model.eval()
     model = model.to(device)
-    our_loss = pixelsplat_loss = 0
-    our_psnr = pixelsplat_psnr = 0
+    model_original.eval()
+    model_original = model_original.to(device)
+    original_loss = our_loss = pixelsplat_loss = 0
+    original_psnr = our_psnr = pixelsplat_psnr = 0
+    original_lpips = our_lpips = pixelsplat_lpips = 0
+    original_ssim = our_ssim = pixelsplat_ssim = 0
     count = 0
     for batch in tqdm(val_loader):  # this is test set 
         if batch == None: continue
@@ -152,23 +196,44 @@ def main():
         prompt = batch["prompt"].to(device)
         
         output = model(image, prompt.squeeze())
+        ouptut_original = model_original(image, prompt.squeeze())
 
         loss = criterion(output, target)
+        loss_original = criterion(ouptut_original, target)
         our_loss += loss.item()
-        # our_psnr += psnr(output, target).item()
+        original_loss += loss_original.item()
         our_psnr += compute_psnr(output, target).sum().item()
+        original_psnr += compute_psnr(ouptut_original, target).sum().item()
         count += image.size(0)
         loss = criterion(image, target)
         pixelsplat_loss += loss.item()
-        # pixelsplat_psnr += psnr(image, target).item()
         pixelsplat_psnr += compute_psnr(image, target).sum().item()
+
+        our_lpips += compute_lpips(output, target).sum().item()
+        pixelsplat_lpips += compute_lpips(image, target).sum().item()
+        original_lpips += compute_lpips(ouptut_original, target).sum().item()
+
+        our_ssim += compute_ssim(output, target).sum().item()
+        pixelsplat_ssim += compute_ssim(image, target).sum().item()
+        original_ssim += compute_ssim(ouptut_original, target).sum().item()
+
 
     print(count)
     print("Our loss: ", our_loss / count)
+    print("Original loss: ", original_loss / count)
     print("Pixelsplat loss: ", pixelsplat_loss / count)
 
     print("Our psnr: ", our_psnr / count)
+    print("Original psnr: ", original_psnr / count)
     print("pixelsplat psnr", pixelsplat_psnr / count)
+
+    print("Our lpips: ", our_lpips / count)
+    print("Original lpips: ", original_lpips / count)
+    print("pixelsplat lpips", pixelsplat_lpips / count)
+
+    print("Our ssim: ", our_ssim / count)
+    print("Original ssim: ", original_ssim / count)
+    print("pixelsplat ssim", pixelsplat_ssim / count)
 
 
 if __name__ == "__main__":
