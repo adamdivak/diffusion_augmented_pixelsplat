@@ -10,7 +10,19 @@ from PIL import Image
 import os
 import argparse
 import torch
+import lpips
 
+
+def get_lpips(device):
+    return lpips.LPIPS(net="vgg").to(device)
+
+@torch.no_grad()
+def compute_lpips(
+    ground_truth,
+    predicted,
+):
+    value = get_lpips(predicted.device).forward(ground_truth, predicted, normalize=True)
+    return value[:, 0, 0, 0].squeeze().mean()
 
 def dict2namespace(config):
     namespace = argparse.Namespace()
@@ -169,18 +181,18 @@ def main(args):
                 repo_id="InstructIR_with_inpainting", exist_ok=True, token=""
             ).repo_id
     
-    criterion = torch.nn.L1Loss()
+    l1_criterion = torch.nn.L1Loss()
     optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
 
     model.eval()
-    val_loss = 0
+    val_loss =0
     for batch in val_loader:
         image = batch["conditioning_image"].to(device)
         target = batch["ground_truth_image"].to(device)
         prompt = batch["prompt"].to(device)
         output = model(image, prompt.squeeze())
 
-        loss = criterion(output, target)
+        loss = l1_criterion(output, target) + compute_lpips(output, target)
         val_loss += loss.item()
     best_val_loss =  val_loss / len(val_loader)
     best_model = None
@@ -200,7 +212,7 @@ def main(args):
 
             optimizer.zero_grad()
             output = model(image, prompt.squeeze())
-            loss = criterion(output, target)
+            loss = l1_criterion(output, target) + compute_lpips(output, target)
             loss.backward()
             optimizer.step()
 
@@ -221,7 +233,7 @@ def main(args):
                     
                     output = model(image, prompt.squeeze())
 
-                    loss = criterion(output, target)
+                    loss = l1_criterion(output, target) + compute_lpips(output, target)
                     val_loss += loss.item()
 
                 val_loss /= len(val_loader)
