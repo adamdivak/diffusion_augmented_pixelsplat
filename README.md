@@ -7,6 +7,9 @@ Check out their [project website here](https://dcharatan.github.io/pixelsplat).
 ## TODO
 - Consider which diffusion model to use
 - Find a way to process the full data in a meaningful and possible way
+
+## Video
+[![Videotitel](https://youtu.be/yOB8nqlEnpw/0.jpg)](https://youtu.be/yOB8nqlEnpw)
   
 ## Export training images
 ```bash
