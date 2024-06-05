@@ -10,9 +10,8 @@ Check out their [project website here](https://dcharatan.github.io/pixelsplat).
 
 ## Video
 
-<a 
-  <img src="demo_images/video.gif" width="800"/>
-</a>
+<img src="demo_images/video.gif" width="800"/>
+
 
   
 ## Export training images
