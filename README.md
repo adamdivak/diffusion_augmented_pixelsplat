@@ -8,7 +8,7 @@ Check out their [project website here](https://dcharatan.github.io/pixelsplat).
 - Consider which diffusion model to use
 - Find a way to process the full data in a meaningful and possible way
 
-## Video
+## Video (click to watch)
 <a href="https://youtu.be/yOB8nqlEnpw">
   <img src="https://img.youtube.com/vi/yOB8nqlEnpw/0.jpg" width="800"/>
 </a>
