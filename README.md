@@ -8,10 +8,10 @@ Check out their [project website here](https://dcharatan.github.io/pixelsplat).
 - Consider which diffusion model to use
 - Find a way to process the full data in a meaningful and possible way
 
-## Video (click to watch)
-<a href="https://youtu.be/yOB8nqlEnpw">
-  <img src="https://img.youtube.com/vi/yOB8nqlEnpw/0.jpg" width="800"/>
-</a>
+## Video
+<video src="demo_images/video.mp4" controls="controls" style="max-width: 730px;">
+</video>
+
   
 ## Export training images
 ```bash
