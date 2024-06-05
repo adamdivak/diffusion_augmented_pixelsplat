@@ -9,8 +9,8 @@ Check out their [project website here](https://dcharatan.github.io/pixelsplat).
 - Find a way to process the full data in a meaningful and possible way
 
 ## Video
-<video src="demo_images/video.mp4" controls="controls" style="max-width: 730px;">
-</video>
+
+<img src='demo_images/video.mp4' width=800>
 
   
 ## Export training images
