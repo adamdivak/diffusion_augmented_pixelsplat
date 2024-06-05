@@ -10,8 +10,8 @@ Check out their [project website here](https://dcharatan.github.io/pixelsplat).
 
 ## Video
 
-<a href="https://youtu.be/yOB8nqlEnpw">
-  <img src="https://img.youtube.com/vi/yOB8nqlEnpw/0.jpg" width="800"/>
+<a 
+  <img src="demo_images/video.gif" width="800"/>
 </a>
 
   
