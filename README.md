@@ -74,17 +74,6 @@ After cloning the repo, execute the following commands, in order and only after 
   ```
 </details>
 
-### Original instructions
-To get started, create a virtual environment using Python 3.10+:
-
-```bash
-python3.10 -m venv venv
-source venv/bin/activate
-# Install these first! Also, make sure you have python3.11-dev installed if using Ubuntu.
-pip install wheel torch torchvision torchaudio
-pip install -r requirements.txt
-```
-
 ## Acquiring Datasets
 
 pixelSplat was trained using versions of the RealEstate10k and ACID datasets that were split into ~100 MB chunks for use on server cluster file systems. Small subsets of the Real Estate 10k and ACID datasets in this format can be found [here](https://drive.google.com/drive/folders/1joiezNCyQK2BvWMnfwHJpm2V77c7iYGe?usp=sharing). To use them, simply unzip them into a newly created `datasets` folder in the project root directory.
