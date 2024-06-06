@@ -4,15 +4,16 @@ This code builds upon the code from the paper **pixelSplat: 3D Gaussian Splats f
 
 Check out their [project website here](https://dcharatan.github.io/pixelsplat).
 
-## TODO
-- Consider which diffusion model to use
-- Find a way to process the full data in a meaningful and possible way
-
-## Video
+## Demo
 
 <img src="demo_images/video.gif" width="1000"/>
 
+## Important files
 
+- [Training ControlNet](controlnet/train_controlnet.py)
+- [Training InstructIR](instructir/train.py): note the authors didn't provide a training script so we made one based on the information from [their paper](https://arxiv.org/abs/2401.16468)
+- [Inference](instructir/inference.py)
+- [Testing ControlNet on out of domain data](instructir/demo_models.ipynb)
   
 ## Export training images
 ```bash
