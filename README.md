@@ -37,6 +37,7 @@ After cloning the repo, execute the following commands, in order and only after 
 
 <details>
   <summary>Step by step instructions</summary>
+  
   ```bash
   cd installation_jobs
   ``` 
