@@ -7,6 +7,7 @@ Check out their [project website here](https://dcharatan.github.io/pixelsplat).
 ## Demo
 
 <img src="demo_images/video.gif" width="1000"/>
+![demo]("demo_images/video.gif")
 
 ## Important files
 
