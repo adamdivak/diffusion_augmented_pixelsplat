@@ -6,6 +6,10 @@ Check out their [project website here](https://dcharatan.github.io/pixelsplat).
 
 ## Demo
 
+
+https://github.com/WouterBant/diffusion-augmented-pixelsplat/assets/73896544/790b1a18-75e1-48f8-aef6-f7f9581e1c90
+
+
 <img src="demo_images/demo.mp4" width="1000"/>
 
 ![demo](demo_images/video.gif)
