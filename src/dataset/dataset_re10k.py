@@ -111,10 +111,12 @@ class DatasetRE10k(IterableDataset):
                     )
                 except ValueError:
                     # Skip because the example doesn't have enough frames.
+                    print(f"Not enough frames in example, skipping")
                     continue
 
                 # Skip the example if the field of view is too wide.
                 if (get_fov(intrinsics).rad2deg() > self.cfg.max_fov).any():
+                    print(f"FoV too large, skipping")
                     continue
 
                 # Load the images.
@@ -128,6 +130,7 @@ class DatasetRE10k(IterableDataset):
                     ]
                     target_images = self.convert_images(target_images)
                 except IndexError:
+                    print(f"Could not load images, skipping")
                     continue
 
                 # Skip the example if the images don't have the right shape.

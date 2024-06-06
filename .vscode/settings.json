@@ -28,7 +28,6 @@
         "**/checkpoints/**": true,
         "**/datasets/**": true,
         "**/lightning_logs/**": true,
-        "**/outputs/**": true,
         "**/dataset_cache/**": true,
         "**/.ruff_cache/**": true,
         "**/venv/**": true,

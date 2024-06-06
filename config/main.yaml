@@ -23,16 +23,19 @@ data_loader:
     persistent_workers: true
     batch_size: 4
     seed: 1234
+    pin_memory: true
   test:
     num_workers: 4
     persistent_workers: false
     batch_size: 1
     seed: 2345
+    pin_memory: true
   val:
     num_workers: 1
     persistent_workers: true
     batch_size: 1
     seed: 3456
+    pin_memory: true
 
 optimizer:
   lr: 1.5e-4

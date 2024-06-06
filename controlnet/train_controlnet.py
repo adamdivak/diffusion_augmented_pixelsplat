@@ -23,6 +23,7 @@ import random
 import shutil
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 import accelerate
 import numpy as np
 import torch
@@ -925,7 +926,7 @@ def main(args):
     train_dataloader = torch.utils.data.DataLoader(
         train_dataset,
         shuffle=True,
-        collate_fn=collate_fn,
+        make_train_dataset=collate_fn,
         batch_size=args.train_batch_size,
         num_workers=args.dataloader_num_workers,
     )
@@ -1082,6 +1083,9 @@ def main(args):
                     target = noise_scheduler.get_velocity(latents, noise, timesteps)
                 else:
                     raise ValueError(f"Unknown prediction type {noise_scheduler.config.prediction_type}")
+                # plt.imshow(model_pred[0].cpu().detach().numpy())
+                # plt.imshow(target[0].cpu().detach().numpy())
+                # plt.show()
                 loss = F.mse_loss(model_pred.float(), target.float(), reduction="mean")
 
                 accelerator.backward(loss)

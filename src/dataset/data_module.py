@@ -38,6 +38,7 @@ class DataLoaderStageCfg:
     num_workers: int
     persistent_workers: bool
     seed: int | None
+    pin_memory: bool
 
 
 @dataclass
@@ -98,6 +99,7 @@ class DataModule(LightningDataModule):
             generator=self.get_generator(self.data_loader_cfg.train),
             worker_init_fn=worker_init_fn,
             persistent_workers=self.get_persistent(self.data_loader_cfg.train),
+            pin_memory=self.data_loader_cfg.train.pin_memory,
         )
 
     def val_dataloader(self):
@@ -110,6 +112,7 @@ class DataModule(LightningDataModule):
             generator=self.get_generator(self.data_loader_cfg.val),
             worker_init_fn=worker_init_fn,
             persistent_workers=self.get_persistent(self.data_loader_cfg.val),
+            pin_memory=self.data_loader_cfg.val.pin_memory,
         )
 
     def test_dataloader(self):
@@ -122,4 +125,5 @@ class DataModule(LightningDataModule):
             generator=self.get_generator(self.data_loader_cfg.test),
             worker_init_fn=worker_init_fn,
             persistent_workers=self.get_persistent(self.data_loader_cfg.test),
+            pin_memory=self.data_loader_cfg.test.pin_memory,
         )
