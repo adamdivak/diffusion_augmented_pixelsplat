@@ -14,6 +14,7 @@ Check out their [project website here](https://dcharatan.github.io/pixelsplat).
 - [Training InstructIR](instructir/train.py): note the authors didn't provide a training script so we made one based on the information from [their paper](https://arxiv.org/abs/2401.16468)
 - [Inference](instructir/inference.py)
 - [Testing ControlNet on out of domain data](instructir/demo_models.ipynb)
+- [Creating demo video](src/video.ipynb)
   
 ## Export training images
 ```bash
