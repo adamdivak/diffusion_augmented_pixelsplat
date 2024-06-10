@@ -21,14 +21,6 @@ https://github.com/WouterBant/diffusion-augmented-pixelsplat/assets/73896544/790
 !python3 -m src.main +experiment=re10k mode=test test.data_loader="train" test.output_path="outputs/re10k_train_data" data_loader.train.batch_size=1 checkpointing.load=checkpoints/re10k.ckpt
 ```
 
-## Demo - in progress
-Running the demo:
-```bash
-python -m src.demo
-```
-
-My first impression: the left and right image are not always very similar, possibly leading to worse results (but still need to test this)
-
 ## Installation
 
 ### Installation on Snellius supercomputer
