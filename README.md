@@ -6,11 +6,7 @@ Check out their [project website here](https://dcharatan.github.io/pixelsplat).
 
 ## Demo
 
-
 https://github.com/WouterBant/diffusion-augmented-pixelsplat/assets/73896544/790b1a18-75e1-48f8-aef6-f7f9581e1c90
-
-
-<img src="demo_images/video.gif" width="1000"/>
 
 ## Important files
 
@@ -83,11 +79,13 @@ After cloning the repo, execute the following commands, in order and only after 
 
 pixelSplat was trained using versions of the RealEstate10k and ACID datasets that were split into ~100 MB chunks for use on server cluster file systems. Small subsets of the Real Estate 10k and ACID datasets in this format can be found [here](https://drive.google.com/drive/folders/1joiezNCyQK2BvWMnfwHJpm2V77c7iYGe?usp=sharing). To use them, simply unzip them into a newly created `datasets` folder in the project root directory.
 
-If you would like to convert downloaded versions of the Real Estate 10k and ACID datasets to our format, you can use the [scripts here](https://github.com/dcharatan/real_estate_10k_tools). Reach out to us if you want the full versions of our processed datasets, which are about 500 GB and 160 GB for Real Estate 10k and ACID respectively.
+The datasets that were used to finetune the diffusion model and InstructIR can be found on Huggingface (https://huggingface.co/datasets/Wouter01/re10k_hard)
 
 ## Acquiring Pre-trained Checkpoints
 
 You can find pre-trained checkpoints [here](https://drive.google.com/drive/folders/1ZYInQyBHav979dH7arITG8Z-wTSR_Bkm?usp=sharing). You can find the checkpoints for the original codebase (without the improvements from the camera-ready version of the paper) [here](https://drive.google.com/drive/folders/18nGNWIn8RN0aEWLR6MC2mshAkx2uN6fL?usp=sharing).
+
+Also the finetuned diffusion and InstructIR models can be found on Huggingface (https://huggingface.co/Wouter01/diffusion_re10k_hard, https://huggingface.co/Wouter01/InstructIR_re10k_hard)
 
 
 ## Acknowledgements
