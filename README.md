@@ -85,7 +85,7 @@ Also the finetuned diffusion and InstructIR models can be found on Huggingface (
 ## Citation
 
 ```
-@misc{vlasenko2024efficient,
+@misc{wouter2024improve_nvs,
   title={Improving novel view synthesis of 3D Gaussian splats using 2D image enhancement methods},
   author={Wouter Bant and Ádám Divák and Jasper Eppink and Clio Feng and Roos Hutter},
   year={2024},
