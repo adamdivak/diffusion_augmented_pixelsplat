@@ -82,6 +82,16 @@ You can find pre-trained checkpoints [here](https://drive.google.com/drive/folde
 
 Also the finetuned diffusion and InstructIR models can be found on Huggingface (https://huggingface.co/Wouter01/diffusion_re10k_hard, https://huggingface.co/Wouter01/InstructIR_re10k_hard)
 
+## Citation
+
+```
+@misc{vlasenko2024efficient,
+  title={Improving novel view synthesis of 3D Gaussian splats using 2D image enhancement methods},
+  author={Wouter Bant and Ádám Divák and Jasper Eppink and Clio Feng and Roos Hutter},
+  year={2024},
+  url={https://github.com/adamdivak/diffusion_augmented_pixelsplat}
+}
+```
 
 ## Acknowledgements
 
